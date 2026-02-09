@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import {
    Tractor,
    ShoppingBag,
+   ShoppingCart,
    Truck,
    Phone,
    CheckCircle,
@@ -730,6 +731,8 @@ const FarmerDashboard = ({ user, listings, offers, orders, messages, inventoryIt
    // Help & Support State
    const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
    const [supportForm, setSupportForm] = useState({ name: user.profile.fullName, email: '', issue: '' });
+   const [counterModal, setCounterModal] = useState<{open: boolean, offer: any | null}>({ open: false, offer: null });
+   const [counterPrice, setCounterPrice] = useState('');
 
    // Settings State
    const [settingsData, setSettingsData] = useState({
@@ -1479,6 +1482,12 @@ const FarmerDashboard = ({ user, listings, offers, orders, messages, inventoryIt
                         {myOffers.length > 0 ? myOffers.map((o: any) => {
                            const listing = listings.find((l: any) => l.id === o.listingId);
                            const isHigher = o.pricePerKg > (listing?.pricePerKg || 0);
+                           
+                           // Negotiation State
+                           const isCounterByFarmer = o.lastActionBy === 'farmer';
+                           const currentPrice = isCounterByFarmer ? o.counterPrice : (o.offeredPrice || o.pricePerKg);
+                           const currentQty = isCounterByFarmer ? o.counterQuantity : (o.quantityRequested || o.quantity);
+
                            return (
                               <Card key={o.id} className="p-0 overflow-hidden border-blue-100 hover:border-blue-400 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/5 group">
                                  <div className="flex flex-col md:flex-row">
@@ -1498,7 +1507,7 @@ const FarmerDashboard = ({ user, listings, offers, orders, messages, inventoryIt
                                              <div className="flex items-center gap-3 mb-2">
                                                 <h4 className="font-bold text-xl text-slate-900 leading-tight">{listing?.cropName}</h4>
                                                 <div className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-black uppercase tracking-wider">
-                                                   QTY: {o.quantity}kg
+                                                   QTY: {currentQty}kg
                                                 </div>
                                              </div>
                                              <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
@@ -1508,10 +1517,11 @@ const FarmerDashboard = ({ user, listings, offers, orders, messages, inventoryIt
                                           </div>
                                           <div className="text-right">
                                              <div className="flex items-center gap-2 justify-end mb-1">
-                                                <div className={`text-3xl font-black tracking-tighter ${isHigher ? 'text-green-600' : 'text-blue-600'} font-display`}>₹{o.pricePerKg}/kg</div>
-                                                {isHigher && <div className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded uppercase">+₹{o.pricePerKg - (listing?.pricePerKg || 0)}</div>}
+                                                <div className={`text-3xl font-black tracking-tighter ${isHigher ? 'text-green-600' : 'text-blue-600'} font-display`}>₹{currentPrice}/kg</div>
+                                                {isHigher && !isCounterByFarmer && <div className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded uppercase">+₹{currentPrice - (listing?.pricePerKg || 0)}</div>}
                                              </div>
-                                             <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total: ₹{o.totalAmount.toLocaleString()}</div>
+                                             <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total: ₹{(currentPrice * currentQty).toLocaleString()}</div>
+                                             {isCounterByFarmer && <div className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded mt-1">Your Counter Offer</div>}
                                           </div>
                                        </div>
 
@@ -1524,23 +1534,35 @@ const FarmerDashboard = ({ user, listings, offers, orders, messages, inventoryIt
                                              Doorstep Pickup Included
                                           </div>
                                           <div className="flex items-center gap-2 text-xs font-black px-4 py-2 bg-red-50 text-red-600 rounded-xl animate-pulse">
-                                             <Clock className="w-3 h-3" /> EXPLRES IN 08:45:22
+                                             <Clock className="w-3 h-3" /> NEGOTIATION OPEN
                                           </div>
                                        </div>
 
                                     <div className="flex gap-4">
                                        {o.status === 'pending' ? (
-                                          <>
-                                             <button className="flex-1 h-12 text-sm font-black text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all" onClick={() => onRejectOffer(o.id)}>
-                                                Reject Offer
-                                             </button>
-                                             <Button className="flex-[2] h-12 bg-blue-600 hover:bg-blue-700 font-black rounded-2xl shadow-xl shadow-blue-600/20 text-sm tracking-wide" onClick={() => onAcceptOffer(o.id)}>
-                                                Accept & Start Deal
-                                             </Button>
-                                          </>
+                                          isCounterByFarmer ? (
+                                              <div className="w-full py-3 bg-amber-50 border border-amber-100 text-amber-700 text-center font-bold rounded-2xl text-sm">
+                                                  Waiting for buyer response...
+                                              </div>
+                                          ) : (
+                                              <>
+                                                 <button className="flex-1 h-12 text-sm font-black text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all" onClick={() => onRejectOffer(o.id)}>
+                                                    Reject
+                                                 </button>
+                                                 <Button variant="outline" className="flex-1 h-12 border-slate-200 text-slate-600 font-black rounded-2xl hover:bg-slate-50" onClick={() => {
+                                                     setCounterModal({ open: true, offer: o });
+                                                     setCounterPrice(o.offeredPrice?.toString() || o.pricePerKg.toString());
+                                                 }}>
+                                                    Counter Offer
+                                                 </Button>
+                                                 <Button className="flex-[2] h-12 bg-blue-600 hover:bg-blue-700 font-black rounded-2xl shadow-xl shadow-blue-600/20 text-sm tracking-wide" onClick={() => onAcceptOffer(o.id)}>
+                                                    Accept & Start Deal
+                                                 </Button>
+                                              </>
+                                          )
                                        ) : (
-                                          <div className={`w-full py-3 rounded-2xl text-center font-bold text-sm ${o.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                             {o.status === 'accepted' ? 'Offer Accepted' : 'Offer Rejected'}
+                                          <div className={`w-full py-3 rounded-2xl text-center font-bold text-sm ${o.status === 'accepted' ? 'bg-green-100 text-green-700' : o.status === 'cancelled' ? 'bg-slate-100 text-slate-500' : 'bg-red-100 text-red-700'}`}>
+                                             {o.status === 'accepted' ? 'Offer Accepted' : o.status === 'cancelled' ? 'Negotiation Cancelled' : 'Offer Rejected'}
                                           </div>
                                        )}
                                     </div>
@@ -2393,20 +2415,92 @@ const FarmerDashboard = ({ user, listings, offers, orders, messages, inventoryIt
                   </Card>
                </div>
             )}
+            
+            {counterModal.open && counterModal.offer && (
+               <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                  <Card className="w-full max-w-md shadow-2xl relative bg-white p-6">
+                     <h3 className="text-xl font-bold mb-4">Counter Offer</h3>
+                     <div className="space-y-4">
+                        <div>
+                           <label className="text-xs font-bold text-slate-500 uppercase">Price per kg (₹)</label>
+                           <Input
+                              type="number"
+                              value={counterPrice}
+                              onChange={e => setCounterPrice(e.target.value)}
+                              className="font-bold text-lg"
+                           />
+                           <p className="text-xs text-slate-400 mt-1">Buyer offered: ₹{counterModal.offer.offeredPrice || counterModal.offer.pricePerKg}</p>
+                        </div>
+                        <div className="flex gap-3">
+                           <Button variant="outline" className="flex-1" onClick={() => setCounterModal({ open: false, offer: null })}>Cancel</Button>
+                           <Button className="flex-1 bg-blue-600 hover:bg-blue-700 font-bold" onClick={() => {
+                               onCounterOffer(counterModal.offer.id, Number(counterPrice), counterModal.offer.quantityRequested || counterModal.offer.quantity, 'farmer');
+                               setCounterModal({ open: false, offer: null });
+                           }}>Send Counter</Button>
+                        </div>
+                     </div>
+                  </Card>
+               </div>
+            )}
          </div>
       </div>
    );
 };
 
 // Buyer and Transporter Dashboards remain the same
-const BuyerDashboard = ({ user, listings, offers, orders, messages, rfqs, transportRequests, transportBids, onAddRfq, onSendMessage, onPlaceOffer, onLogout, onUpdateProfile, onRaiseDispute, onCreateTransportRequest, onAcceptTransportBid }: any) => {
+const BuyerDashboard = ({ user, listings, offers, orders, messages, rfqs, transportRequests, transportBids, allUsers, onAddRfq, onSendMessage, onPlaceOffer, onAcceptOffer, onCounterOffer, onCancelOffer, onLogout, onUpdateProfile, onRaiseDispute, onCreateTransportRequest, onAcceptTransportBid }: any) => {
    const [view, setView] = useState('home');
    const [searchTerm, setSearchTerm] = useState('');
    const [selectedListing, setSelectedListing] = useState<any>(null);
    const [showOfferModal, setShowOfferModal] = useState(false);
    const [offerData, setOfferData] = useState({ quantity: 0, price: 0 });
+   
+   // Negotiation State
+   const [counterModal, setCounterModal] = useState<{open: boolean, offer: any | null}>({ open: false, offer: null });
+   const [counterPrice, setCounterPrice] = useState('');
+
    const [showTransportModal, setShowTransportModal] = useState(false);
    const [transportOrderId, setTransportOrderId] = useState<string | null>(null);
+   const [cartItems, setCartItems] = useState<{ listingId: string; quantity: number }[]>([]);
+   const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+   const cartKey = `kisansetu_cart_${user.id}`;
+
+   React.useEffect(() => {
+      try {
+         const saved = localStorage.getItem(cartKey);
+         if (saved) setCartItems(JSON.parse(saved));
+      } catch (e) {
+         console.error('Failed to load cart', e);
+      }
+   }, [cartKey]);
+
+   React.useEffect(() => {
+      try {
+         localStorage.setItem(cartKey, JSON.stringify(cartItems));
+      } catch (e) {
+         console.error('Failed to save cart', e);
+      }
+   }, [cartKey, cartItems]);
+
+   React.useEffect(() => {
+      setActiveImageIndex(0);
+   }, [selectedListing?.id]);
+
+   const addToCart = (listing: any, qty?: number) => {
+      const minQty = Number(listing.minOrderQuantity || 1);
+      const addQty = Math.max(1, Number(qty || minQty));
+      setCartItems(prev => {
+         const existing = prev.find(i => i.listingId === listing.id);
+         if (!existing) return [...prev, { listingId: listing.id, quantity: Math.min(addQty, Number(listing.availableQuantity || listing.quantity || addQty)) }];
+         return prev.map(i => i.listingId !== listing.id ? i : ({
+            ...i,
+            quantity: Math.min(i.quantity + addQty, Number(listing.availableQuantity || listing.quantity || i.quantity + addQty))
+         }));
+      });
+   };
+
+   const removeFromCart = (listingId: string) => setCartItems(prev => prev.filter(i => i.listingId !== listingId));
 
    // Buyer Profile State
    const [profileData, setProfileData] = useState<BuyerProfile>(user.profile || { fullName: user.phone, city: '', state: '', language: 'English' });
@@ -2439,6 +2533,7 @@ const BuyerDashboard = ({ user, listings, offers, orders, messages, rfqs, transp
 
    const myOffers = offers.filter((o: any) => o.buyerName === user.profile.fullName);
    const myOrders = orders.filter((o: any) => o.buyerName === user.profile.fullName);
+   const cartCount = cartItems.length;
    const filteredListings = listings.filter((l: any) =>
       l.status === 'active' &&
       (marketFilter === 'all' || l.cropName.includes(marketFilter) || (marketFilter === 'Vegetables' && ['Potato', 'Tomato', 'Onion', 'Carrot'].includes(l.cropName)) || (marketFilter === 'Grains' && ['Wheat', 'Rice', 'Maize', 'Soybean'].includes(l.cropName)) || (marketFilter === 'Fruits' && ['Mango', 'Banana', 'Apple'].includes(l.cropName))) &&
@@ -2449,6 +2544,26 @@ const BuyerDashboard = ({ user, listings, offers, orders, messages, rfqs, transp
       if (marketSort === 'price_low') return a.pricePerKg - b.pricePerKg;
       return b.pricePerKg - a.pricePerKg;
    });
+
+   const getCategory = (cropName: string) => {
+      const veg = ['Potato', 'Tomato', 'Onion', 'Carrot', 'Cabbage', 'Cauliflower', 'Brinjal', 'Okra'];
+      const grains = ['Wheat', 'Rice', 'Maize', 'Soybean', 'Bajra', 'Jowar'];
+      const fruits = ['Mango', 'Banana', 'Apple', 'Grapes', 'Orange'];
+      if (veg.includes(cropName)) return 'Vegetables';
+      if (grains.includes(cropName)) return 'Grains';
+      if (fruits.includes(cropName)) return 'Fruits';
+      return 'All';
+   };
+
+   const farmerUser = selectedListing ? (allUsers || []).find((u: any) => u.id === selectedListing.farmerId) : null;
+   const farmerListingsAll = selectedListing ? listings.filter((l: any) => l.status === 'active' && l.farmerId === selectedListing.farmerId).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [];
+   const currentFarmerIndex = selectedListing ? farmerListingsAll.findIndex((l: any) => l.id === selectedListing.id) : -1;
+   const prevFromFarmer = currentFarmerIndex > 0 ? farmerListingsAll[currentFarmerIndex - 1] : null;
+   const nextFromFarmer = currentFarmerIndex >= 0 && currentFarmerIndex < farmerListingsAll.length - 1 ? farmerListingsAll[currentFarmerIndex + 1] : null;
+   const moreFromFarmer = selectedListing ? farmerListingsAll.filter((l: any) => l.id !== selectedListing.id).slice(0, 8) : [];
+   const similarSameCrop = selectedListing ? listings.filter((l: any) => l.status === 'active' && l.cropName === selectedListing.cropName && l.id !== selectedListing.id).slice(0, 8) : [];
+   const recommendedOtherFarmers = selectedListing ? listings.filter((l: any) => l.status === 'active' && l.farmerId !== selectedListing.farmerId && getCategory(l.cropName) === getCategory(selectedListing.cropName)).slice(0, 12) : [];
+   const recommendedNearYou = selectedListing ? listings.filter((l: any) => l.status === 'active' && l.farmerId !== selectedListing.farmerId && (l.location || '').toLowerCase().includes((user.profile?.city || '').toLowerCase())).slice(0, 8) : [];
 
    const handlePlaceOfferSubmit = () => {
       onPlaceOffer({
@@ -2480,6 +2595,7 @@ const BuyerDashboard = ({ user, listings, offers, orders, messages, rfqs, transp
                   { id: 'home', label: 'Marketplace', icon: Store },
                   { id: 'offers', label: 'My Offers', icon: ShoppingBag, badge: myOffers.length },
                   { id: 'orders', label: 'My Orders', icon: Package, badge: myOrders.length },
+                  { id: 'cart', label: 'Cart', icon: ShoppingCart, badge: cartCount },
                      { id: 'rfq', label: 'RFQ', icon: FileText },
                      { id: 'shortlists', label: 'Shortlists', icon: Package },
                      { id: 'analytics', label: 'Analytics', icon: FileClock },
@@ -2509,84 +2625,318 @@ const BuyerDashboard = ({ user, listings, offers, orders, messages, rfqs, transp
          <main className="flex-1 overflow-y-auto p-8 relative h-screen">
             {view === 'home' && (
                <div className="space-y-8 animate-in fade-in">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                     <div>
-                        <h2 className="text-3xl font-bold text-slate-900">Crop Marketplace</h2>
-                        <p className="text-slate-500">Find and source premium crops directly from farmers</p>
-                     </div>
-                     <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                        <div className="relative w-full md:w-64">
-                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                           <input
-                              type="text"
-                              placeholder="Search crops..."
-                              className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
-                              value={searchTerm}
-                              onChange={e => setSearchTerm(e.target.value)}
-                           />
-                        </div>
-                        <select
-                           className="px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 font-bold text-slate-600 cursor-pointer"
-                           value={marketSort}
-                           onChange={(e: any) => setMarketSort(e.target.value)}
-                        >
-                           <option value="newest">Newest First</option>
-                           <option value="price_low">Price: Low to High</option>
-                           <option value="price_high">Price: High to Low</option>
-                        </select>
-                     </div>
-                  </div>
-
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                     {(['all', 'Vegetables', 'Grains', 'Fruits'] as const).map(filter => (
-                        <button
-                           key={filter}
-                           onClick={() => setMarketFilter(filter)}
-                           className={`px-5 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-all ${marketFilter === filter
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-                        >
-                           {filter === 'all' ? 'All Crops' : filter}
-                        </button>
-                     ))}
-                  </div>
-
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                     {filteredListings.map(l => (
-                        <Card key={l.id} className="p-0 overflow-hidden group hover:shadow-2xl transition-all duration-500 border-slate-200 hover:border-blue-300">
-                           <div className="h-48 overflow-hidden relative">
-                              <img src={l.imageUrls?.[0] || l.imageUrl} alt={l.cropName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                              <div className="absolute top-3 right-3 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-[10px] font-black uppercase text-blue-700 shadow-sm border border-blue-100">Grade {l.grade}</div>
+                  <Card className="p-0 overflow-hidden border-slate-200">
+                     <div className="p-7 bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 text-white relative">
+                        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top,white,transparent_60%)]" />
+                        <div className="relative">
+                           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+                              <div>
+                                 <div className="text-[10px] font-black uppercase tracking-[0.25em] text-white/80">Marketplace</div>
+                                 <h2 className="text-3xl md:text-4xl font-black mt-1 leading-tight">Buy Direct From Farmers</h2>
+                                 <p className="text-white/80 font-medium mt-2 max-w-2xl">Compare price, quality, and location. Add to cart, then negotiate with the farmer like Flipkart-style product browsing.</p>
+                              </div>
+                              <div className="grid grid-cols-3 gap-3 w-full md:w-auto">
+                                 <div className="p-4 rounded-2xl bg-white/10 border border-white/15">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-white/70">Live</div>
+                                    <div className="text-2xl font-black">{filteredListings.length}</div>
+                                 </div>
+                                 <div className="p-4 rounded-2xl bg-white/10 border border-white/15">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-white/70">Cart</div>
+                                    <div className="text-2xl font-black">{cartCount}</div>
+                                 </div>
+                                 <div className="p-4 rounded-2xl bg-white/10 border border-white/15">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-white/70">Offers</div>
+                                    <div className="text-2xl font-black">{myOffers.length}</div>
+                                 </div>
+                              </div>
                            </div>
-                           <div className="p-6">
-                              <div className="flex justify-between items-start mb-4">
-                                 <div>
-                                    <h4 className="font-bold text-lg text-slate-900">{l.cropName}</h4>
-                                    <div className="flex items-center gap-1 text-xs text-slate-400 mt-1 font-medium"><MapPin className="w-3 h-3" /> {l.location}</div>
+                        </div>
+                     </div>
+
+                     <div className="p-5 bg-white border-t border-slate-100">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                           <div className="relative w-full lg:w-[420px]">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <input
+                                 type="text"
+                                 placeholder="Search crop, location, farmer..."
+                                 className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+                                 value={searchTerm}
+                                 onChange={e => setSearchTerm(e.target.value)}
+                              />
+                           </div>
+                           <div className="flex flex-wrap gap-2 items-center">
+                              {(['all', 'Vegetables', 'Grains', 'Fruits'] as const).map(filter => (
+                                 <button
+                                    key={filter}
+                                    onClick={() => setMarketFilter(filter)}
+                                    className={`px-4 h-11 rounded-2xl whitespace-nowrap text-sm font-black transition-all ${marketFilter === filter
+                                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                       : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'}`}
+                                 >
+                                    {filter === 'all' ? 'All' : filter}
+                                 </button>
+                              ))}
+                              <select
+                                 className="px-4 h-11 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 font-black text-slate-700 cursor-pointer"
+                                 value={marketSort}
+                                 onChange={(e: any) => setMarketSort(e.target.value)}
+                              >
+                                 <option value="newest">Newest</option>
+                                 <option value="price_low">Lowest Price</option>
+                                 <option value="price_high">Highest Price</option>
+                              </select>
+                           </div>
+                        </div>
+                     </div>
+                  </Card>
+
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                     {filteredListings.map(l => (
+                        <Card key={l.id} className="p-0 overflow-hidden group hover:shadow-2xl transition-all duration-500 border-slate-200 hover:border-blue-300 bg-white">
+                           <div className="h-52 overflow-hidden relative cursor-pointer" onClick={() => { setSelectedListing(l); setView('product-details'); }}>
+                              <img src={l.imageUrls?.[0] || l.imageUrl} alt={l.cropName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/50 via-slate-900/0 to-slate-900/0 opacity-80" />
+                              <div className="absolute top-3 right-3 flex items-center gap-2">
+                                 <div className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-[10px] font-black uppercase text-blue-700 shadow-sm border border-blue-100">Grade {l.grade}</div>
+                                 <div className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-[10px] font-black uppercase text-slate-700 shadow-sm border border-slate-200 flex items-center gap-1">
+                                    <Star className="w-3 h-3 text-amber-500" /> 4.6
+                                 </div>
+                              </div>
+                              <button className="absolute top-3 left-3 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm border border-blue-100 text-blue-700 flex items-center justify-center shadow-sm hover:bg-white transition-colors" onClick={(e) => { e.stopPropagation(); addToCart(l); }}>
+                                 <ShoppingCart className="w-5 h-5" />
+                              </button>
+                              <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-3">
+                                 <div className="min-w-0">
+                                    <div className="text-white font-black truncate">{l.cropName}{l.variety ? ` • ${l.variety}` : ''}</div>
+                                    <div className="text-white/80 text-xs font-bold flex items-center gap-1 truncate"><MapPin className="w-3 h-3" /> {l.location}</div>
                                  </div>
                                  <div className="text-right">
-                                    <div className="text-xl font-black text-blue-600">₹{l.pricePerKg}/kg</div>
-                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Asking Price</div>
+                                    <div className="text-white font-black text-lg">₹{l.pricePerKg}/kg</div>
                                  </div>
                               </div>
-                              <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-100 mb-6 bg-slate-50/50 -mx-6 px-6">
-                                 <div>
-                                    <div className="text-[10px] text-slate-400 font-black uppercase mb-1">Stock</div>
-                                    <div className="font-bold text-slate-700">{l.availableQuantity || l.quantity} kg</div>
+                           </div>
+                           <div className="p-5">
+                              <div className="flex items-start justify-between gap-4">
+                                 <div className="min-w-0">
+                                    <div className="text-xs text-slate-400 font-black uppercase tracking-widest">Farmer</div>
+                                    <div className="font-black text-slate-900 truncate">{l.farmerName}</div>
                                  </div>
-                                 <div>
-                                    <div className="text-[10px] text-slate-400 font-black uppercase mb-1">Farmer</div>
-                                    <div className="font-bold text-slate-700 truncate">{l.farmerName}</div>
+                                 <div className="text-right">
+                                    <div className="text-xs text-slate-400 font-black uppercase tracking-widest">Stock</div>
+                                    <div className="font-black text-slate-900">{l.availableQuantity || l.quantity} kg</div>
                                  </div>
                               </div>
-                              <div className="flex gap-2">
-                                 <Button variant="outline" className="flex-1 h-11 text-xs font-bold border-slate-200" onClick={() => setSelectedListing(l)}>Details</Button>
-                                 <Button className="flex-[2] h-11 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 text-xs font-bold" onClick={() => { setSelectedListing(l); setOfferData({ quantity: l.availableQuantity || l.quantity, price: l.pricePerKg }); setShowOfferModal(true); }}>Place Offer</Button>
+
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                 <div className="px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-600 uppercase tracking-wider">MOQ {l.minOrderQuantity || 1}kg</div>
+                                 {!!(l.packagingDetails || '').trim() && <div className="px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-600 uppercase tracking-wider">Packed</div>}
+                                 {!!(l.certification && l.certification.length) && <div className="px-3 py-1 rounded-full bg-green-50 border border-green-100 text-[10px] font-black text-green-700 uppercase tracking-wider">Certified</div>}
+                              </div>
+
+                              <div className="mt-5 flex gap-2">
+                                 <Button variant="outline" className="flex-1 h-11 text-xs font-black border-slate-200" onClick={() => { setSelectedListing(l); setView('product-details'); }}>View</Button>
+                                 <Button variant="outline" className="w-11 h-11 p-0 border-slate-200" onClick={() => addToCart(l)}><ShoppingCart className="w-4 h-4" /></Button>
+                                 <Button className="flex-[2] h-11 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 text-xs font-black" onClick={() => { setSelectedListing(l); setOfferData({ quantity: l.minOrderQuantity || l.availableQuantity || l.quantity, price: l.pricePerKg }); setShowOfferModal(true); }}>Negotiate</Button>
                               </div>
                            </div>
                         </Card>
                      ))}
                   </div>
+               </div>
+            )}
+
+            {view === 'product-details' && selectedListing && (
+               <div className="space-y-6 animate-in slide-in-from-right-4 pb-10">
+                  <div className="flex items-center gap-2 mb-4">
+                     <Button variant="ghost" onClick={() => setView('home')} className="gap-2 text-slate-500 hover:text-slate-900 font-bold"><ArrowLeft className="w-4 h-4" /> Back to Marketplace</Button>
+                  </div>
+                  <Card className="w-full shadow-sm relative overflow-hidden bg-white p-0 border border-slate-200">
+                     <div className="p-5 md:p-6 border-b border-slate-100 flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                           <div className="text-xs text-slate-400 font-bold">
+                              Marketplace <span className="mx-1">›</span> {getCategory(selectedListing.cropName)} <span className="mx-1">›</span> <span className="text-slate-700 font-black">{selectedListing.cropName}</span>
+                           </div>
+                           <div className="flex items-center gap-3 mt-2">
+                              <h3 className="text-2xl md:text-3xl font-black text-slate-900 truncate">{selectedListing.cropName}{selectedListing.variety ? ` • ${selectedListing.variety}` : ''}</h3>
+                              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-100">Grade {selectedListing.grade}</span>
+                              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1"><Star className="w-3 h-3" /> 4.6</span>
+                           </div>
+                           <div className="text-sm text-slate-500 font-medium mt-1 flex items-center gap-2"><MapPin className="w-4 h-4" /> {selectedListing.location}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <Button variant="outline" className="h-10 text-xs font-black border-slate-200" disabled={!prevFromFarmer} onClick={() => prevFromFarmer && setSelectedListing(prevFromFarmer)}><ArrowLeft className="w-4 h-4 mr-2" /> Prev</Button>
+                           <Button variant="outline" className="h-10 text-xs font-black border-slate-200" disabled={!nextFromFarmer} onClick={() => nextFromFarmer && setSelectedListing(nextFromFarmer)}>Next <ArrowRight className="w-4 h-4 ml-2" /></Button>
+                        </div>
+                     </div>
+
+                     <div className="grid lg:grid-cols-5 gap-0">
+                        <div className="lg:col-span-2 bg-slate-50 border-r border-slate-100">
+                           {(() => {
+                              const images = (selectedListing.imageUrls && selectedListing.imageUrls.length > 0) ? selectedListing.imageUrls : (selectedListing.imageUrl ? [selectedListing.imageUrl] : []);
+                              const active = images[Math.min(activeImageIndex, Math.max(0, images.length - 1))] || images[0];
+                              return (
+                                 <div className="p-5 md:p-6">
+                                    <div className="aspect-square rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+                                       <img src={active} alt={selectedListing.cropName} className="w-full h-full object-cover" />
+                                    </div>
+                                    {images.length > 1 && (
+                                       <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+                                          {images.slice(0, 6).map((src: string, i: number) => (
+                                             <button key={src + i} className={`w-20 h-20 rounded-2xl overflow-hidden border ${i === activeImageIndex ? 'border-blue-600 ring-2 ring-blue-600/20' : 'border-slate-200 hover:border-blue-300'}`} onClick={() => setActiveImageIndex(i)}>
+                                                <img src={src} alt={`${selectedListing.cropName} ${i + 1}`} className="w-full h-full object-cover" />
+                                             </button>
+                                          ))}
+                                       </div>
+                                    )}
+                                 </div>
+                              );
+                           })()}
+                        </div>
+
+                        <div className="lg:col-span-3 p-5 md:p-6">
+                           <div className="grid md:grid-cols-3 gap-6">
+                              <div className="md:col-span-2 space-y-6">
+                                 <Card className="p-5 border-slate-200 bg-white">
+                                    <div className="flex items-end justify-between gap-4">
+                                       <div>
+                                          <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Price</div>
+                                          <div className="text-3xl font-black text-blue-600">₹{selectedListing.pricePerKg}/kg</div>
+                                          <div className="text-xs text-slate-500 font-bold mt-1">MOQ: {selectedListing.minOrderQuantity || 1} kg</div>
+                                       </div>
+                                       <div className="text-right">
+                                          <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Available</div>
+                                          <div className="text-2xl font-black text-slate-900">{selectedListing.availableQuantity || selectedListing.quantity} kg</div>
+                                       </div>
+                                    </div>
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                       {!!selectedListing.packagingDetails && <div className="px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-600 uppercase tracking-wider">Packed</div>}
+                                       {!!selectedListing.moistureContent && <div className="px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-600 uppercase tracking-wider">Moisture {selectedListing.moistureContent}%</div>}
+                                       {!!selectedListing.harvestDate && <div className="px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-600 uppercase tracking-wider">Harvest {new Date(selectedListing.harvestDate).toLocaleDateString()}</div>}
+                                       {!!(selectedListing.certification && selectedListing.certification.length) && <div className="px-3 py-1 rounded-full bg-green-50 border border-green-100 text-[10px] font-black text-green-700 uppercase tracking-wider">Certified</div>}
+                                    </div>
+                                 </Card>
+
+                                 <div className="space-y-2">
+                                    <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">About this product</div>
+                                    <div className="text-sm text-slate-700 font-medium leading-relaxed">{selectedListing.description || 'No description provided.'}</div>
+                                 </div>
+
+                                 <Card className="p-5 border-slate-200 bg-white">
+                                    <div className="flex items-start justify-between gap-4">
+                                       <div className="min-w-0">
+                                          <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Seller</div>
+                                          <div className="text-lg font-black text-slate-900 truncate">{selectedListing.farmerName}</div>
+                                          <div className="text-xs text-slate-500 font-medium">
+                                             {farmerUser?.profile?.city ? `${(farmerUser.profile as any).city}, ` : ''}{farmerUser?.profile?.state ? (farmerUser.profile as any).state : ''}
+                                          </div>
+                                       </div>
+                                       <Button variant="outline" className="h-10 text-xs font-black border-slate-200" onClick={() => {
+                                          const toUserId = selectedListing.farmerId;
+                                          onSendMessage?.({ toUserId, text: `Hi ${selectedListing.farmerName}, I'm interested in ${selectedListing.cropName}.`, listingId: selectedListing.id });
+                                          setView('messages');
+                                       }}>Message</Button>
+                                    </div>
+                                 </Card>
+                              </div>
+
+                              <div className="md:col-span-1">
+                                 <div className="sticky top-6">
+                                    <Card className="p-5 border-slate-200 bg-white">
+                                       <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Quick Actions</div>
+                                       <div className="mt-4 space-y-3">
+                                          <Button className="w-full h-12 bg-blue-600 hover:bg-blue-700 font-black" onClick={() => { addToCart(selectedListing); setView('cart'); }}><ShoppingCart className="w-4 h-4 mr-2" /> Add to Cart</Button>
+                                          <Button variant="outline" className="w-full h-12 font-black border-slate-200" onClick={() => { setOfferData({ quantity: selectedListing.minOrderQuantity || 1, price: selectedListing.pricePerKg }); setShowOfferModal(true); }}>Negotiate Price</Button>
+                                          <Button variant="ghost" className="w-full h-11 font-black text-slate-600" onClick={() => { setView('home'); }}>Continue Shopping</Button>
+                                       </div>
+                                    </Card>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="p-5 md:p-6 border-t border-slate-100 bg-white space-y-8">
+                        <div>
+                           <div className="flex items-center justify-between mb-4">
+                              <div className="text-sm font-black text-slate-900">More from {selectedListing.farmerName}</div>
+                              <div className="text-xs font-bold text-slate-400">Listings: {Math.max(0, farmerListingsAll.length - 1)}</div>
+                           </div>
+                           {moreFromFarmer.length === 0 ? (
+                              <div className="text-xs text-slate-500 font-medium">No other active listings from this farmer.</div>
+                           ) : (
+                              <div className="flex gap-4 overflow-x-auto pb-2">
+                                 {moreFromFarmer.map((l: any) => (
+                                    <button key={l.id} className="text-left group min-w-[220px]" onClick={() => setSelectedListing(l)}>
+                                       <Card className="p-0 overflow-hidden border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all">
+                                          <div className="h-32 overflow-hidden">
+                                             <img src={l.imageUrls?.[0] || l.imageUrl} alt={l.cropName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                          </div>
+                                          <div className="p-4">
+                                             <div className="font-black text-slate-900 truncate">{l.cropName}</div>
+                                             <div className="text-xs text-slate-500 font-medium truncate">{l.location}</div>
+                                             <div className="text-xs text-blue-600 font-black mt-1">₹{l.pricePerKg}/kg</div>
+                                          </div>
+                                       </Card>
+                                    </button>
+                                 ))}
+                              </div>
+                           )}
+                        </div>
+
+                        <div>
+                           <div className="flex items-center justify-between mb-4">
+                              <div className="text-sm font-black text-slate-900">Similar products ({selectedListing.cropName})</div>
+                              <div className="text-xs font-bold text-slate-400">From other farmers</div>
+                           </div>
+                           {similarSameCrop.length === 0 ? (
+                              <div className="text-xs text-slate-500 font-medium">No similar products found right now.</div>
+                           ) : (
+                              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                 {similarSameCrop.slice(0, 8).map((l: any) => (
+                                    <button key={l.id} className="text-left group" onClick={() => setSelectedListing(l)}>
+                                       <Card className="p-0 overflow-hidden border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all">
+                                          <div className="h-28 overflow-hidden">
+                                             <img src={l.imageUrls?.[0] || l.imageUrl} alt={l.cropName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                          </div>
+                                          <div className="p-4">
+                                             <div className="font-black text-slate-900 truncate">{l.cropName}</div>
+                                             <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest truncate">{l.farmerName}</div>
+                                             <div className="text-xs text-slate-500 font-medium truncate">{l.location}</div>
+                                             <div className="text-xs text-blue-600 font-black mt-1">₹{l.pricePerKg}/kg</div>
+                                          </div>
+                                       </Card>
+                                    </button>
+                                 ))}
+                              </div>
+                           )}
+                        </div>
+
+                        <div>
+                           <div className="flex items-center justify-between mb-4">
+                              <div className="text-sm font-black text-slate-900">Recommended from other farmers</div>
+                              <div className="text-xs font-bold text-slate-400">{getCategory(selectedListing.cropName)} picks</div>
+                           </div>
+                           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                              {(recommendedNearYou.length > 0 ? recommendedNearYou : recommendedOtherFarmers).slice(0, 8).map((l: any) => (
+                                 <button key={l.id} className="text-left group" onClick={() => setSelectedListing(l)}>
+                                    <Card className="p-0 overflow-hidden border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all">
+                                       <div className="h-28 overflow-hidden">
+                                          <img src={l.imageUrls?.[0] || l.imageUrl} alt={l.cropName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                       </div>
+                                       <div className="p-4">
+                                          <div className="font-black text-slate-900 truncate">{l.cropName}</div>
+                                          <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest truncate">{l.farmerName}</div>
+                                          <div className="text-xs text-slate-500 font-medium truncate">{l.location}</div>
+                                          <div className="text-xs text-blue-600 font-black mt-1">₹{l.pricePerKg}/kg</div>
+                                       </div>
+                                    </Card>
+                                 </button>
+                              ))}
+                           </div>
+                        </div>
+                     </div>
+                  </Card>
                </div>
             )}
             
@@ -2653,29 +3003,123 @@ const BuyerDashboard = ({ user, listings, offers, orders, messages, rfqs, transp
                <div className="space-y-6 animate-in slide-in-from-right-4">
                   <h2 className="text-2xl font-bold text-slate-900">My Active Offers</h2>
                   <div className="grid gap-4">
-                     {myOffers.map(o => (
+                     {myOffers.map(o => {
+                        // Negotiation State
+                        const isCounterByFarmer = o.lastActionBy === 'farmer';
+                        const currentPrice = isCounterByFarmer ? o.counterPrice : (o.offeredPrice || o.pricePerKg);
+                        const currentQty = isCounterByFarmer ? o.counterQuantity : (o.quantityRequested || o.quantity);
+
+                        return (
                         <Card key={o.id} className="p-6 border-slate-200 hover:border-blue-400 transition-colors">
                            <div className="flex justify-between items-center">
                               <div className="flex gap-4 items-center">
                                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600"><ShoppingBag className="w-6 h-6" /></div>
                                  <div>
                                     <h4 className="font-bold text-slate-900">{o.cropName}</h4>
-                                    <p className="text-sm text-slate-500">₹{o.pricePerKg}/kg • {o.quantity}kg</p>
+                                    <p className="text-sm text-slate-500">₹{currentPrice}/kg • {currentQty}kg</p>
+                                    {isCounterByFarmer && <div className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded mt-1 w-fit">Farmer Countered</div>}
                                  </div>
                               </div>
                               <div className="text-right">
-                                 <div className="text-lg font-black text-slate-900 mb-1">₹{o.totalAmount.toLocaleString()}</div>
+                                 <div className="text-lg font-black text-slate-900 mb-1">₹{(currentPrice * currentQty).toLocaleString()}</div>
                                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${o.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                                    o.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                                    o.status === 'rejected' ? 'bg-red-100 text-red-700' : o.status === 'cancelled' ? 'bg-slate-100 text-slate-500' : 'bg-blue-100 text-blue-700'
                                     }`}>
-                                    {o.status}
+                                    {o.status === 'cancelled' ? 'Cancelled' : o.status}
                                  </span>
                               </div>
                            </div>
+                           
+                           {o.status === 'pending' && (
+                               <div className="mt-4 pt-4 border-t border-slate-100 flex gap-3 justify-end">
+                                   <Button variant="outline" className="text-xs font-bold text-red-500 hover:bg-red-50 hover:text-red-600 border-slate-200" onClick={() => onCancelOffer(o.id)}>Cancel Negotiation</Button>
+                                   {isCounterByFarmer && (
+                                       <>
+                                           <Button variant="outline" className="text-xs font-bold border-slate-200" onClick={() => {
+                                               setCounterModal({ open: true, offer: o });
+                                               setCounterPrice(o.counterPrice?.toString() || o.pricePerKg.toString());
+                                           }}>Counter Back</Button>
+                                           <Button className="text-xs font-bold bg-green-600 hover:bg-green-700" onClick={() => onAcceptOffer(o.id)}>Accept Counter</Button>
+                                       </>
+                                   )}
+                               </div>
+                           )}
                         </Card>
-                     ))}
+                     )})}
                      {myOffers.length === 0 && <div className="text-center py-20 text-slate-400 bg-white rounded-3xl border border-dashed border-slate-200">No offers placed yet. Browse the marketplace to start.</div>}
                   </div>
+               </div>
+            )}
+
+            {view === 'cart' && (
+               <div className="space-y-6 animate-in slide-in-from-right-4">
+                  <div className="flex items-end justify-between gap-4">
+                     <div>
+                        <h2 className="text-2xl font-bold text-slate-900">Cart</h2>
+                        <p className="text-sm text-slate-500 font-medium">Review items before negotiating or ordering</p>
+                     </div>
+                     <div className="text-xs font-black text-slate-400 uppercase tracking-widest">Items: {cartCount}</div>
+                  </div>
+
+                  {cartItems.length === 0 ? (
+                     <div className="text-center py-20 text-slate-400 bg-white rounded-3xl border border-dashed border-slate-200">Your cart is empty. Add crops from the marketplace.</div>
+                  ) : (
+                     <div className="space-y-4">
+                        <div className="grid gap-4">
+                           {cartItems.map(ci => {
+                              const l = listings.find((x: any) => x.id === ci.listingId);
+                              if (!l) return null;
+                              const maxQty = Number(l.availableQuantity || l.quantity || 0);
+                              const unitTotal = Number(l.pricePerKg || 0) * Number(ci.quantity || 0);
+                              return (
+                                 <Card key={ci.listingId} className="p-6 border-slate-200 bg-white">
+                                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                                       <div className="flex gap-4 items-center">
+                                          <div className="w-14 h-14 bg-blue-50 rounded-2xl overflow-hidden border border-blue-100">
+                                             <img src={l.imageUrls?.[0] || l.imageUrl} alt={l.cropName} className="w-full h-full object-cover" />
+                                          </div>
+                                          <div className="min-w-0">
+                                             <div className="font-black text-slate-900 truncate">{l.cropName}</div>
+                                             <div className="text-xs text-slate-500 font-medium truncate">{l.farmerName} • {l.location}</div>
+                                             <div className="text-xs text-slate-400 font-bold">₹{l.pricePerKg}/kg</div>
+                                          </div>
+                                       </div>
+                                       <div className="flex flex-col md:items-end gap-3">
+                                          <div className="flex items-center gap-2">
+                                             <span className="text-xs font-bold text-slate-400">Qty (kg)</span>
+                                             <input className="w-24 h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold outline-blue-500" type="number" min={1} max={maxQty} value={ci.quantity} onChange={(e) => {
+                                                const next = Math.max(1, Math.min(maxQty || 999999, Number(e.target.value || 1)));
+                                                setCartItems(prev => prev.map(i => i.listingId !== ci.listingId ? i : { ...i, quantity: next }));
+                                             }} />
+                                          </div>
+                                          <div className="text-lg font-black text-slate-900">₹{unitTotal.toLocaleString()}</div>
+                                          <div className="flex gap-2 flex-wrap justify-end">
+                                             <Button variant="outline" className="h-10 text-xs font-black border-slate-200" onClick={() => { setSelectedListing(l); setView('product-details'); }}>View</Button>
+                                             <Button className="h-10 text-xs font-black bg-blue-600 hover:bg-blue-700" onClick={() => { setSelectedListing(l); setOfferData({ quantity: ci.quantity, price: l.pricePerKg }); setShowOfferModal(true); }}>Place Offer</Button>
+                                             <Button variant="outline" className="h-10 text-xs font-black border-slate-200" onClick={() => removeFromCart(ci.listingId)}><Trash2 className="w-4 h-4" /></Button>
+                                          </div>
+                                       </div>
+                                    </div>
+                                 </Card>
+                              );
+                           })}
+                        </div>
+                        <Card className="p-6 bg-white border-slate-200">
+                           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                              <div>
+                                 <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Cart Total</div>
+                                 <div className="text-2xl font-black text-slate-900">
+                                    ₹{cartItems.reduce((sum, ci) => {
+                                       const l = listings.find((x: any) => x.id === ci.listingId);
+                                       return sum + (Number(l?.pricePerKg || 0) * Number(ci.quantity || 0));
+                                    }, 0).toLocaleString()}
+                                 </div>
+                              </div>
+                              <Button className="h-12 bg-slate-900 hover:bg-slate-800 font-black" onClick={() => setView('home')}>Add More Items</Button>
+                           </div>
+                        </Card>
+                     </div>
+                  )}
                </div>
             )}
 
@@ -3037,6 +3481,36 @@ const BuyerDashboard = ({ user, listings, offers, orders, messages, rfqs, transp
             )}
             </div>
          </main>
+
+
+
+         {/* Counter Offer Modal */}
+         {counterModal.open && counterModal.offer && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+               <Card className="w-full max-w-md shadow-2xl relative bg-white p-6">
+                  <h3 className="text-xl font-bold mb-4">Counter Offer</h3>
+                  <div className="space-y-4">
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Price per kg (₹)</label>
+                        <Input
+                           type="number"
+                           value={counterPrice}
+                           onChange={e => setCounterPrice(e.target.value)}
+                           className="font-bold text-lg"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Farmer asked: ₹{counterModal.offer.counterPrice}</p>
+                     </div>
+                     <div className="flex gap-3">
+                        <Button variant="outline" className="flex-1" onClick={() => setCounterModal({ open: false, offer: null })}>Cancel</Button>
+                        <Button className="flex-1 bg-blue-600 hover:bg-blue-700 font-bold" onClick={() => {
+                            onCounterOffer(counterModal.offer.id, Number(counterPrice), counterModal.offer.quantityRequested || counterModal.offer.quantity, 'buyer');
+                            setCounterModal({ open: false, offer: null });
+                        }}>Send Counter</Button>
+                     </div>
+                  </div>
+               </Card>
+            </div>
+         )}
 
          {/* Place Offer Modal */}
          {showOfferModal && selectedListing && (
@@ -4130,12 +4604,26 @@ const App = () => {
           return;
       }
 
+      // Determine final terms based on who is accepting
+      let finalPrice = offer.offeredPrice || offer.pricePerKg;
+      let finalQuantity = offer.quantityRequested || offer.quantity;
+      
+      if (offer.lastActionBy === 'farmer') {
+          // Buyer accepted Farmer's counter
+          finalPrice = offer.counterPrice;
+          finalQuantity = offer.counterQuantity;
+      } else {
+          // Farmer accepted Buyer's offer
+          finalPrice = offer.offeredPrice || offer.pricePerKg;
+          finalQuantity = offer.quantityRequested || offer.quantity;
+      }
+
       const newOrder: Order = {
          id: `ord_${Date.now()}`,
          listingId: listing.id,
          cropName: listing.cropName,
-         quantity: offer.quantityRequested || offer.quantity,
-         totalAmount: (offer.offeredPrice || offer.pricePerKg) * (offer.quantityRequested || offer.quantity),
+         quantity: finalQuantity,
+         totalAmount: finalPrice * finalQuantity,
          status: 'confirmed',
          date: new Date().toISOString(),
          farmerName: listing.farmerName,
@@ -4154,7 +4642,7 @@ const App = () => {
          await svc.setOfferStatus(offerId, 'accepted');
          
          // Update listing quantity
-         const updatedListing = { ...listing, availableQuantity: listing.availableQuantity - offer.quantityRequested };
+         const updatedListing = { ...listing, availableQuantity: listing.availableQuantity - finalQuantity };
          await svc.updateListing(updatedListing);
 
          // Refresh local state with fresh data
@@ -4178,6 +4666,55 @@ const App = () => {
        } catch (error) {
           console.error("Error rejecting offer:", error);
           alert('Failed to reject offer. Check console for the exact Supabase error.');
+       }
+   };
+
+   const handleCounterOffer = async (offerId: string, price: number, quantity: number, role: 'buyer' | 'farmer') => {
+      console.log("Countering offer:", offerId, price, quantity, role);
+      try {
+         const offer = offers.find(o => o.id === offerId);
+         if (!offer) return;
+
+         const historyEntry = {
+            role,
+            price,
+            quantity,
+            action: 'counter',
+            timestamp: new Date().toISOString()
+         };
+
+         const updates: any = {
+             lastActionBy: role,
+             history: [...(offer.history || []), historyEntry],
+             status: 'pending' // Reset status to pending if it was rejected? Usually counters happen on pending offers.
+         };
+
+         if (role === 'farmer') {
+             updates.counterPrice = price;
+             updates.counterQuantity = quantity;
+         } else {
+             updates.offeredPrice = price;
+             updates.quantityRequested = quantity;
+         }
+
+         const updated = await svc.updateOffer(offerId, updates);
+         if (!updated) throw new Error('Offer update failed');
+
+         setOffers(prev => prev.map(o => o.id === offerId ? updated : o));
+         console.log("Offer countered successfully");
+      } catch (error) {
+         console.error("Error countering offer:", error);
+         alert('Failed to counter offer.');
+      }
+   };
+
+   const handleCancelOffer = async (offerId: string) => {
+       try {
+           const updated = await svc.setOfferStatus(offerId, 'cancelled');
+           setOffers(prev => prev.map(o => o.id === offerId ? { ...o, status: 'cancelled' } : o));
+       } catch (error) {
+           console.error("Error cancelling offer:", error);
+           alert('Failed to cancel offer.');
        }
    };
 
@@ -4382,8 +4919,8 @@ const App = () => {
          {screen === 'admin-login' && <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4"><AdminLogin onLogin={handleAdminLogin} onBack={() => setScreen('landing')} /></div>}
 
          {screen === 'dashboard' && currentUser?.role === 'admin' && <AdminDashboard allUsers={allUsers} listings={listings} orders={orders} disputes={disputes} systemConfig={systemConfig} onUpdateConfig={setSystemConfig} onLogout={handleLogout} onUpdateUserStatus={handleUserStatusChange} onResolveDispute={handleResolveDispute} />}
-        {screen === 'dashboard' && currentUser?.role === 'farmer' && <FarmerDashboard user={currentUser} listings={listings} offers={offers} orders={orders} messages={messages} inventoryItems={inventoryItems} payouts={payouts} transportRequests={transportRequests} allUsers={allUsers} onAddInventoryItem={handleAddInventoryItem} onAddPayout={handleAddPayout} onSendMessage={handleSendMessage} onAddListing={handleAddListing} onUpdateListing={handleUpdateListing} onUpdateListingStatus={handleUpdateListingStatus} onDeleteListing={handleDeleteListing} onAcceptOffer={handleAcceptOffer} onRejectOffer={handleRejectOffer} onUpdateProfile={handleUpdateProfile} onRaiseDispute={handleRaiseDispute} onLogout={handleLogout} onAcceptTransportRequest={handleAcceptTransportRequest} />}
-         {screen === 'dashboard' && currentUser?.role === 'buyer' && <BuyerDashboard user={currentUser} listings={listings} offers={offers} orders={orders} messages={messages} rfqs={rfqs} transportRequests={transportRequests} transportBids={transportBids} onAddRfq={handleAddRfq} onSendMessage={handleSendMessage} onPlaceOffer={handlePlaceOffer} onUpdateProfile={handleUpdateProfile} onRaiseDispute={handleRaiseDispute} onLogout={handleLogout} onCreateTransportRequest={handleCreateTransportRequest} onAcceptTransportBid={handleAcceptTransportBid} />}
+        {screen === 'dashboard' && currentUser?.role === 'farmer' && <FarmerDashboard user={currentUser} listings={listings} offers={offers} orders={orders} messages={messages} inventoryItems={inventoryItems} payouts={payouts} transportRequests={transportRequests} allUsers={allUsers} onAddInventoryItem={handleAddInventoryItem} onAddPayout={handleAddPayout} onSendMessage={handleSendMessage} onAddListing={handleAddListing} onUpdateListing={handleUpdateListing} onUpdateListingStatus={handleUpdateListingStatus} onDeleteListing={handleDeleteListing} onAcceptOffer={handleAcceptOffer} onRejectOffer={handleRejectOffer} onCounterOffer={handleCounterOffer} onUpdateProfile={handleUpdateProfile} onRaiseDispute={handleRaiseDispute} onLogout={handleLogout} onAcceptTransportRequest={handleAcceptTransportRequest} />}
+         {screen === 'dashboard' && currentUser?.role === 'buyer' && <BuyerDashboard user={currentUser} listings={listings} offers={offers} orders={orders} messages={messages} rfqs={rfqs} transportRequests={transportRequests} transportBids={transportBids} allUsers={allUsers} onAddRfq={handleAddRfq} onSendMessage={handleSendMessage} onPlaceOffer={handlePlaceOffer} onAcceptOffer={handleAcceptOffer} onCounterOffer={handleCounterOffer} onCancelOffer={handleCancelOffer} onUpdateProfile={handleUpdateProfile} onRaiseDispute={handleRaiseDispute} onLogout={handleLogout} onCreateTransportRequest={handleCreateTransportRequest} onAcceptTransportBid={handleAcceptTransportBid} />}
          {screen === 'dashboard' && currentUser?.role === 'transporter' && <TransporterDashboard user={currentUser} orders={orders} messages={messages} routePlans={routePlans} transportRequests={transportRequests} transportBids={transportBids} onAddRoutePlan={handleAddRoutePlan} onSendMessage={handleSendMessage} onRaiseDispute={handleRaiseDispute} onLogout={handleLogout} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateProfile={handleUpdateProfile} onAcceptTransportRequest={handleAcceptTransportRequest} onAddTransportBid={handleAddTransportBid} onUpdateTransportRequestStatus={handleUpdateTransportRequestStatus} />}
       </div>
    );

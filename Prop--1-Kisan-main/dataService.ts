@@ -194,6 +194,13 @@ export async function setOfferStatus(id: string, status: string) {
   return data
 }
 
+export async function updateOffer(id: string, updates: any) {
+  const c = getSupabase(); if (!c) throw new Error('Supabase not configured')
+  const { data, error } = await c.from('offers').update(updates).eq('id', id).select().single()
+  if (error) { console.error('updateOffer error', error); throw error }
+  return data
+}
+
 export async function createOrder(payload: any) {
   const c = getSupabase(); if (!c) throw new Error('Supabase not configured')
   const orderData = {

@@ -39,19 +39,20 @@ create table if not exists offers (
   "buyerName" text,
   "buyerLocation" text,
   "pricePerKg" numeric,
-  "quantity" numeric, -- mapped from quantityRequested if needed, but App uses quantity/quantityRequested inconsistently? Let's check. App uses quantity in Offer type?
-  -- Wait, Offer type in App uses 'quantity' or 'quantityRequested'? 
-  -- In handlePlaceOffer: quantity: offerData.quantity.
-  -- In handleAcceptOffer: quantityRequested.
-  -- I should check types.ts. Assuming 'quantity' for now, will fix if needed.
+  "quantity" numeric, 
   "quantityRequested" numeric, 
-  "offeredPrice" numeric, -- App uses offeredPrice? handlePlaceOffer uses pricePerKg. 
+  "offeredPrice" numeric, 
   "totalAmount" numeric,
   "status" text default 'pending',
+  
+  -- Negotiation fields
+  "counterPrice" numeric,
+  "counterQuantity" numeric,
+  "lastActionBy" text,
+  "history" jsonb,
+
   "createdAt" timestamp with time zone default timezone('utc'::text, now())
 );
--- Note: I need to be careful with Offer fields. Let's make sure I support both or check types.ts.
--- I'll check types.ts in a moment. For now, I'll add both potential columns to be safe.
 
 -- ORDERS TABLE
 create table if not exists orders (

@@ -223,7 +223,20 @@ export interface Offer {
   buyerLocation: string;
   offeredPrice: number;
   quantityRequested: number;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  
+  // Negotiation fields
+  counterPrice?: number;
+  counterQuantity?: number;
+  lastActionBy?: 'buyer' | 'farmer';
+  history?: {
+      role: 'buyer' | 'farmer';
+      price: number;
+      quantity: number;
+      action: 'offer' | 'counter' | 'reject' | 'accept' | 'cancel';
+      timestamp: string;
+  }[];
+  
   createdAt: string;
 }
 
